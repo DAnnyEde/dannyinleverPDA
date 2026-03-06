@@ -1,0 +1,98 @@
+@page "/bookings/create"
+@using BlazorProject.Data
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext _ApplicationDbContext
+@attribute [StreamRendering]
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+
+<PageTitle>Boeking toevoegen</PageTitle>
+
+<h1>Boeking toevoegen</h1>
+
+<EditForm Model=@newBooking OnValidSubmit="HandleValidSubmit" FormName="bookingForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label for="CustomerID" class="form-label">Klant:</label>
+        <InputSelect id="CustomerID" class="form-control" @bind-Value="newBooking.CustomerID">
+            @foreach (var customer in customers ?? [])
+            {
+                <option value="@customer.CustomerID">@customer.FirstName @customer.LastName</option>
+            }
+        </InputSelect>
+    </div>
+
+    <div class="mb-3">
+        <label for="AccommodationID" class="form-label">Accommodatie:</label>
+        <InputSelect id="AccommodationID" class="form-control" @bind-Value="newBooking.AccommodationID">
+            @foreach (var accommodation in accommodations ?? [])
+            {
+                <option value="@accommodation.AccommodationID">@accommodation.Name</option>
+            }
+        </InputSelect>
+    </div>
+
+    <div class="mb-3">
+        <label for="BookingDate" class="form-label">Boekingsdatum:</label>
+        <InputDate @bind-Value=newBooking.BookingDate name="BookingDate" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label for="ArrivalDate" class="form-label">Aankomstdatum:</label>
+        <InputDate @bind-Value=newBooking.ArrivalDate name="ArrivalDate" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label for="DepartureDate" class="form-label">Vertrekdatum:</label>
+        <InputDate @bind-Value=newBooking.DepartureDate name="DepartureDate" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label for="NumberOfGuests" class="form-label">Aantal gasten:</label>
+        <InputNumber @bind-Value=newBooking.NumberOfGuests name="NumberOfGuests" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label for="TotalPrice" class="form-label">Totale prijs (in EURO):</label>
+        <InputNumber @bind-Value=newBooking.TotalPrice name="TotalPrice" class="form-control" />
+    </div>
+
+    <input type="submit" value="Toevoegen" class="btn btn-success" />
+</EditForm>
+
+@code {
+    private Accommodation[]? accommodations;
+    private Customer[]? customers;
+
+    [SupplyParameterFromForm]
+    private Booking newBooking { get; set; } = new Booking
+    {
+        CustomerID = 0,
+        AccommodationID = 0,
+        BookingDate = DateTime.Now,
+        ArrivalDate = DateTime.Now.AddDays(1),
+        DepartureDate = DateTime.Now.AddDays(2),
+        NumberOfGuests = 1,
+        TotalPrice = 0.0m
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        accommodations = await _ApplicationDbContext.Accommodations.ToArrayAsync();
+        customers = await _ApplicationDbContext.Customers.ToArrayAsync();
+
+        if (newBooking.CustomerID == 0 && customers?.Length > 0)
+            newBooking.CustomerID = customers[0].CustomerID;
+        if (newBooking.AccommodationID == 0 && accommodations?.Length > 0)
+            newBooking.AccommodationID = accommodations[0].AccommodationID;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        _ApplicationDbContext.Bookings.Add(newBooking);
+        await _ApplicationDbContext.SaveChangesAsync();
+        Navigation.NavigateTo("bookings/");
+    }
+}

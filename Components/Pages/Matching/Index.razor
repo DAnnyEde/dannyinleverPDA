@@ -1,0 +1,215 @@
+@page "/matching/"
+@using BlazorProject.Data
+@using Accommodation = BlazorProject.Data.Accommodation
+@using Location = BlazorProject.Data.Location
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext _ApplicationDbContext
+@rendermode InteractiveServer
+
+<PageTitle>Accommodatie matching</PageTitle>
+
+<h1>Accommodatie matching</h1>
+<p class="text-muted">Zoek accommodaties die passen bij de wensen van een klant.</p>
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Klant:</label>
+                <select class="form-select" @bind="selectedCustomerID"> 
+                    <option value="0">-- Selecteer klant --</option>
+                    @foreach (var customer in customers ?? [])
+                    {
+                        <option value="@customer.CustomerID">@customer.FirstName @customer.LastName</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Aankomstdatum:</label>
+                <input type="date" class="form-control" @bind="arrivalDate" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Vertrekdatum:</label>
+                <input type="date" class="form-control" @bind="departureDate" />
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" @onclick="SearchMatches">
+                    Zoeken
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (errorMessage != null)
+{
+    <div class="alert alert-warning">@errorMessage</div>
+}
+
+@if (customerWishes != null && customerWishes.Count == 0)
+{
+    <div class="alert alert-info">Deze klant heeft geen wensen ingesteld.</div>
+}
+
+@if (customerWishes != null && customerWishes.Count > 0)
+{
+    <p>
+        <strong>Wensen van klant:</strong>
+        @foreach (var wish in customerWishes)
+        {
+            <span class="badge bg-secondary ms-1">@wish.Property?.Name: @wish.Value</span>
+        }
+    </p>
+}
+
+@if (results != null)
+{
+    @if (results.Count == 0)
+    {
+        <p>Geen accommodaties gevonden.</p>
+    }
+    else
+    {
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Accommodatie</th>
+                    <th>Locatie</th>
+                    <th>Prijs</th>
+                    <th>Overeenkomst</th>
+                    <th>Beschikbaarheid</th>
+                    <th>Acties</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var result in results)
+                {
+                    <tr>
+                        <td>@result.Accommodation.Name</td>
+                        <td>@result.Accommodation.Location?.City, @result.Accommodation.Location?.Country</td>
+                        <td>€@result.Accommodation.Price?.ToString("0.00")</td>
+                        <td>
+                            @if (result.TotalWishes == 0)
+                            {
+                                <span>-</span>
+                            }
+                            else
+                            {
+                                <div class="progress" style="height:18px;">
+                                    <div class="progress-bar bg-success" style="width:@result.MatchPercentage%;">
+                                        @result.MatchPercentage%
+                                    </div>
+                                </div>
+                                <small>@result.MatchedWishes / @result.TotalWishes wensen</small>
+                            }
+                        </td>
+                        <td>
+                            @if (result.IsAvailable)
+                            {
+                                <span class="badge bg-success">Beschikbaar</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger">Bezet</span>
+                            }
+                        </td>
+                        <td>
+                            <a class="btn btn-info btn-sm" href="/accommodations/@result.Accommodation.AccommodationID/detail">Details</a>
+                            @if (result.IsAvailable)
+                            {
+                                <a class="btn btn-success btn-sm ms-1" href="/bookings/create">Boek nu</a>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private Customer[]? customers;
+    private int selectedCustomerID;
+    private DateTime arrivalDate = DateTime.Today.AddDays(1);
+    private DateTime departureDate = DateTime.Today.AddDays(7);
+    private List<MatchResult>? results;
+    private List<CustomerWish>? customerWishes;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        customers = await _ApplicationDbContext.Customers.ToArrayAsync();
+    }
+
+    private async Task SearchMatches()
+    {
+        errorMessage = null;
+        results = null;
+        customerWishes = null;
+
+        if (arrivalDate >= departureDate)
+        {
+            errorMessage = "Vertrekdatum moet na de aankomstdatum liggen.";
+            return;
+        }
+
+        customerWishes = await _ApplicationDbContext.CustomerWishes
+            .Where(cw => cw.CustomerID == selectedCustomerID)
+            .Include(cw => cw.Property)
+            .ToListAsync();
+
+        var accommodations = await _ApplicationDbContext.Accommodations
+            .Include(a => a.Location)
+            .Include(a => a.Bookings)
+            .ToListAsync();
+
+        results = new List<MatchResult>();
+
+        foreach (var acc in accommodations)
+        {
+            int matched = 0;
+
+            foreach (var wish in customerWishes)
+            {
+                string wishText = wish.Value?.ToLower() ?? "";
+                string name = acc.Name?.ToLower() ?? "";
+                string description = acc.Description?.ToLower() ?? "";
+                string price = acc.Price?.ToString() ?? "";
+
+                if (name.Contains(wishText) || description.Contains(wishText) || price.Contains(wishText))
+                {
+                    matched++;
+                }
+            }
+
+            bool isAvailable = true;
+
+            foreach (var booking in acc.Bookings)
+            {
+                if (booking.ArrivalDate < departureDate && booking.DepartureDate > arrivalDate)
+                {
+                    isAvailable = false;
+                    break;
+                }
+            }
+
+            results.Add(new MatchResult
+            {
+                Accommodation = acc,
+                MatchedWishes = matched,
+                TotalWishes = customerWishes.Count,
+                IsAvailable = isAvailable
+            });
+        }
+
+        results = results.OrderByDescending(r => r.MatchPercentage).ToList();
+    }
+
+    private class MatchResult
+    {
+        public Accommodation Accommodation { get; set; } = null!;
+        public int MatchedWishes { get; set; }
+        public int TotalWishes { get; set; }
+        public int MatchPercentage => TotalWishes > 0 ? MatchedWishes * 100 / TotalWishes : 0;
+        public bool IsAvailable { get; set; }
+    }
+}

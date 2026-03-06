@@ -1,0 +1,87 @@
+@page "/bookings/"
+@using BlazorProject.Data
+@using Booking = BlazorProject.Data.Booking
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext _ApplicationDbContext
+@rendermode InteractiveServer
+
+<PageTitle>Boekingen</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Boekingen</h1>
+    <a class="btn btn-success" href="/bookings/create">+ Nieuwe boeking</a>
+</div>
+
+@if (bookings == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (bookings.Length == 0)
+{
+    <p>Geen boekingen gevonden.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Klant</th>
+                <th>Accommodatie</th>
+                <th>Boekingsdatum</th>
+                <th>Aankomst</th>
+                <th>Vertrek</th>
+                <th>Gasten</th>
+                <th>Prijs</th>
+                <th>Acties</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var booking in bookings)
+            {
+                <tr>
+                    <td>@booking.BookingID</td>
+                    <td>@booking.Customer?.FirstName @booking.Customer?.LastName</td>
+                    <td>@booking.Accommodation?.Name</td>
+                    <td>@booking.BookingDate?.ToString("dd-MM-yyyy")</td>
+                    <td>@booking.ArrivalDate?.ToString("dd-MM-yyyy")</td>
+                    <td>@booking.DepartureDate?.ToString("dd-MM-yyyy")</td>
+                    <td>@booking.NumberOfGuests</td>
+                    <td>€@booking.TotalPrice?.ToString("0.00")</td>
+                    <td>
+                        <a class="btn btn-warning btn-sm" href="/bookings/@booking.BookingID">Bewerken</a>
+                        <button class="btn btn-danger btn-sm ms-1" @onclick="() => DeleteBooking(booking.BookingID)">Verwijderen</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private Booking[]? bookings;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBookings();
+    }
+
+    private async Task LoadBookings()
+    {
+        bookings = await _ApplicationDbContext.Bookings
+            .Include(b => b.Customer)
+            .Include(b => b.Accommodation)
+            .ToArrayAsync();
+    }
+
+    private async Task DeleteBooking(int id)
+    {
+        var booking = await _ApplicationDbContext.Bookings.FindAsync(id);
+        if (booking != null)
+        {
+            _ApplicationDbContext.Bookings.Remove(booking);
+            await _ApplicationDbContext.SaveChangesAsync();
+            await LoadBookings();
+        }
+    }
+}

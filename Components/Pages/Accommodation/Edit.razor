@@ -1,0 +1,94 @@
+@page "/accommodations/{id:int}"
+@using BlazorProject.Data
+@using Accommodation = BlazorProject.Data.Accommodation
+@using Location = BlazorProject.Data.Location
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext _ApplicationDbContext
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+
+<PageTitle>Accommodatie bewerken</PageTitle>
+
+@if (accommodation == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>Accommodatie bewerken</h1>
+        <button class="btn btn-danger" @onclick="DeleteAccommodation">Verwijderen</button>
+    </div>
+
+    <EditForm Model=@accommodation OnValidSubmit="HandleValidSubmit" FormName="editAccommodationForm">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Naam:</label>
+            <InputText @bind-Value=accommodation.Name class="form-control" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Beschrijving:</label>
+            <InputTextArea @bind-Value=accommodation.Description class="form-control" rows="3" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Prijs (€):</label>
+            <InputNumber @bind-Value=accommodation.Price class="form-control" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Afbeelding URL:</label>
+            <InputText @bind-Value=accommodation.ImageURL class="form-control" placeholder="https://..." />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Locatie:</label>
+            <InputSelect @bind-Value=accommodation.LocationID class="form-control">
+                <option value="0">-- Selecteer locatie --</option>
+                @foreach (var location in locations ?? [])
+                {
+                    <option value="@location.LocationID">@location.City, @location.Country</option>
+                }
+            </InputSelect>
+        </div>
+
+        <input type="submit" value="Opslaan" class="btn btn-success" />
+        <a href="/" class="btn btn-secondary ms-2">Annuleren</a>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Accommodation? accommodation;
+    private Location[]? locations;
+
+    protected override async Task OnInitializedAsync()
+    {
+        accommodation = await _ApplicationDbContext.Accommodations.FindAsync(Id);
+        locations = await _ApplicationDbContext.Locations.ToArrayAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        _ApplicationDbContext.Accommodations.Update(accommodation!);
+        await _ApplicationDbContext.SaveChangesAsync();
+        Navigation.NavigateTo("/");
+    }
+
+    private async Task DeleteAccommodation()
+    {
+        var bookings = _ApplicationDbContext.Bookings.Where(b => b.AccommodationID == Id);
+        _ApplicationDbContext.Bookings.RemoveRange(bookings);
+
+        var properties = _ApplicationDbContext.AccommodationProperties.Where(ap => ap.AccommodationID == Id);
+        _ApplicationDbContext.AccommodationProperties.RemoveRange(properties);
+
+        _ApplicationDbContext.Accommodations.Remove(accommodation!);
+        await _ApplicationDbContext.SaveChangesAsync();
+        Navigation.NavigateTo("/");
+    }
+}

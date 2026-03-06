@@ -1,0 +1,110 @@
+@page "/customers/"
+@using BlazorProject.Data
+@using Customer = BlazorProject.Data.Customer
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext _ApplicationDbContext
+@rendermode InteractiveServer
+
+<PageTitle>Klanten</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Klanten</h1>
+</div>
+
+@if (customers == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (customers.Length == 0)
+{
+    <p>Geen klanten gevonden.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Voornaam</th>
+                <th>Achternaam</th>
+                <th>Email</th>
+                <th>Telefoonnummer</th>
+                <th>Acties</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var customer in customers)
+            {
+                <tr>
+                    <td>@customer.CustomerID</td>
+                    <td>@customer.FirstName</td>
+                    <td>@customer.LastName</td>
+                    <td>@customer.Email</td>
+                    <td>@customer.PhoneNumber</td>
+                    <td>
+                        <a class="btn btn-warning btn-sm" href="/customers/@customer.CustomerID">Bewerken</a>
+                        <button class="btn btn-danger btn-sm ms-1" @onclick="() => DeleteCustomer(customer.CustomerID)">Verwijderen</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<h4>Nieuwe klant toevoegen</h4>
+<EditForm Model=@newCustomer OnValidSubmit="HandleValidSubmit" FormName="addCustomerForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="row g-2 align-items-end">
+        <div class="col-md-2">
+            <InputText @bind-Value=newCustomer.FirstName name="FirstName" class="form-control" placeholder="Voornaam..." />
+        </div>
+        <div class="col-md-2">
+            <InputText @bind-Value=newCustomer.LastName name="LastName" class="form-control" placeholder="Achternaam..." />
+        </div>
+        <div class="col-md-3">
+            <InputText @bind-Value=newCustomer.Email name="Email" class="form-control" placeholder="E-mailadres..." />
+        </div>
+        <div class="col-md-2">
+            <InputText @bind-Value=newCustomer.PhoneNumber name="PhoneNumber" class="form-control" placeholder="Telefoonnummer..." />
+        </div>
+        <div class="col-md-2">
+            <input type="submit" value="Toevoegen" class="btn btn-success w-100" />
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    private Customer[]? customers;
+    private Customer newCustomer = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        customers = await _ApplicationDbContext.Customers.ToArrayAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        _ApplicationDbContext.Customers.Add(newCustomer);
+        await _ApplicationDbContext.SaveChangesAsync();
+        newCustomer = new();
+        customers = await _ApplicationDbContext.Customers.ToArrayAsync();
+    }
+
+    private async Task DeleteCustomer(int id)
+    {
+        var customer = await _ApplicationDbContext.Customers.FindAsync(id);
+        if (customer != null)
+        {
+            var bookings = _ApplicationDbContext.Bookings.Where(b => b.CustomerID == id);
+            _ApplicationDbContext.Bookings.RemoveRange(bookings);
+
+            var wishes = _ApplicationDbContext.CustomerWishes.Where(cw => cw.CustomerID == id);
+            _ApplicationDbContext.CustomerWishes.RemoveRange(wishes);
+
+            _ApplicationDbContext.Customers.Remove(customer);
+            await _ApplicationDbContext.SaveChangesAsync();
+            customers = await _ApplicationDbContext.Customers.ToArrayAsync();
+        }
+    }
+}

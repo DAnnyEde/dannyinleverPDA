@@ -1,0 +1,124 @@
+@page "/wishes/"
+@using BlazorProject.Data
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext _ApplicationDbContext
+@rendermode InteractiveServer
+
+<PageTitle>Klantenwensen</PageTitle>
+
+<h1>Klantenwensen</h1>
+
+@if (wishes == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (wishes.Length == 0)
+{
+    <p>Geen wensen gevonden.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Klant</th>
+                <th>Wens</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var wish in wishes)
+            {
+                <tr>
+                    <td>@wish.Customer?.FirstName @wish.Customer?.LastName</td>
+                    <td>@wish.Value</td>
+                    <td>
+                        <button class="btn btn-danger btn-sm" @onclick="() => DeleteWish(wish.CustomerID, wish.WishID)">Verwijderen</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<h4>Wens toevoegen</h4>
+<EditForm Model=@newWish OnValidSubmit="HandleValidSubmit" FormName="addWishForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label">Klant:</label>
+            <InputSelect @bind-Value=newWish.CustomerID class="form-control">
+                <option value="0">-- Selecteer klant --</option>
+                @foreach (var customer in customers ?? [])
+                {
+                    <option value="@customer.CustomerID">@customer.FirstName @customer.LastName</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-5">
+            <label class="form-label">Wens:</label>
+            <InputText @bind-Value=newWish.Value class="form-control" placeholder="bijv. zwembad, wifi, strand..." />
+        </div>
+        <div class="col-md-3">
+            <input type="submit" value="Toevoegen" class="btn btn-success" />
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    private CustomerWish[]? wishes;
+    private Customer[]? customers;
+
+    [SupplyParameterFromForm]
+    private CustomerWish newWish { get; set; } = new CustomerWish();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        wishes = await _ApplicationDbContext.CustomerWishes
+            .Include(cw => cw.Customer)
+            .ToArrayAsync();
+
+        customers = await _ApplicationDbContext.Customers.ToArrayAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        int nextId = 1;
+        if (await _ApplicationDbContext.CustomerWishes.AnyAsync())
+            nextId = await _ApplicationDbContext.CustomerWishes.MaxAsync(cw => cw.WishID) + 1;
+
+        newWish.WishID = nextId;
+
+        var firstProperty = await _ApplicationDbContext.Properties.FirstOrDefaultAsync();
+        if (firstProperty == null)
+        {
+            firstProperty = new Property { Name = "Algemeen" };
+            _ApplicationDbContext.Properties.Add(firstProperty);
+            await _ApplicationDbContext.SaveChangesAsync();
+        }
+        newWish.PropertyID = firstProperty.PropertyID;
+
+        _ApplicationDbContext.CustomerWishes.Add(newWish);
+        await _ApplicationDbContext.SaveChangesAsync();
+
+        newWish = new CustomerWish();
+        await LoadData();
+    }
+
+    private async Task DeleteWish(int customerID, int wishID)
+    {
+        var wish = await _ApplicationDbContext.CustomerWishes.FindAsync(customerID, wishID);
+        if (wish != null)
+        {
+            _ApplicationDbContext.CustomerWishes.Remove(wish);
+            await _ApplicationDbContext.SaveChangesAsync();
+            await LoadData();
+        }
+    }
+}

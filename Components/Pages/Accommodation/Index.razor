@@ -1,0 +1,87 @@
+@page "/"
+@using BlazorProject.Data
+@using Accommodation = BlazorProject.Data.Accommodation
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext _ApplicationDbContext
+@rendermode InteractiveServer
+
+<PageTitle>Accommodaties</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Accommodaties</h1>
+    <a class="btn btn-success" href="/accommodations/create">+ Nieuwe accommodatie</a>
+</div>
+
+@if (accommodations == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!accommodations.Any())
+{
+    <p>Geen accommodaties gevonden.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th scope="col">#</th>
+                <th scope="col">Naam</th>
+                <th scope="col">Beschrijving</th>
+                <th scope="col">Prijs</th>
+                <th scope="col">Locatie</th>
+                <th scope="col">Acties</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var accommodation in accommodations)
+            {
+                <tr>
+                    <td>@accommodation.AccommodationID</td>
+                    <td>@accommodation.Name</td>
+                    <td>@accommodation.Description</td>
+                    <td>@(accommodation.Price.HasValue ? "€" + accommodation.Price.Value.ToString("0.00") : "-")</td>
+                    <td>@accommodation.Location?.City</td>
+                    <td>
+                        <a class="btn btn-info btn-sm" href="/accommodations/@accommodation.AccommodationID/detail">Details</a>
+                        <a class="btn btn-warning btn-sm ms-1" href="/accommodations/@accommodation.AccommodationID">Bewerken</a>
+                        <button class="btn btn-danger btn-sm ms-1" @onclick="() => DeleteAccommodation(accommodation.AccommodationID)">Verwijderen</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private Accommodation[]? accommodations;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAccommodations();
+    }
+
+    private async Task LoadAccommodations()
+    {
+        accommodations = await _ApplicationDbContext.Accommodations
+            .Include(a => a.Location)
+            .ToArrayAsync();
+    }
+
+    private async Task DeleteAccommodation(int id)
+    {
+        var accommodation = await _ApplicationDbContext.Accommodations.FindAsync(id);
+        if (accommodation != null)
+        {
+            var bookings = _ApplicationDbContext.Bookings.Where(b => b.AccommodationID == id);
+            _ApplicationDbContext.Bookings.RemoveRange(bookings);
+
+            var properties = _ApplicationDbContext.AccommodationProperties.Where(ap => ap.AccommodationID == id);
+            _ApplicationDbContext.AccommodationProperties.RemoveRange(properties);
+
+            _ApplicationDbContext.Accommodations.Remove(accommodation);
+            await _ApplicationDbContext.SaveChangesAsync();
+            await LoadAccommodations();
+        }
+    }
+}

@@ -1,0 +1,89 @@
+@page "/locations/"
+@using BlazorProject.Data
+@using Location = BlazorProject.Data.Location
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext _ApplicationDbContext
+@rendermode InteractiveServer
+
+<PageTitle>Locaties</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Locaties</h1>
+    <a class="btn btn-success" href="/locations/create">+ Nieuwe locatie</a>
+</div>
+
+@if (locations == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!locations.Any())
+{
+    <p>Geen locaties gevonden.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Stad</th>
+                <th>Provincie</th>
+                <th>Land</th>
+                <th>Acties</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var location in locations)
+            {
+                <tr>
+                    <td>@location.LocationID</td>
+                    <td>@location.City</td>
+                    <td>@location.Province</td>
+                    <td>@location.Country</td>
+                    <td>
+                        <a class="btn btn-warning btn-sm" href="/locations/@location.LocationID">Bewerken</a>
+                        <button class="btn btn-danger btn-sm" @onclick="() => DeleteLocation(location.LocationID)">Verwijderen</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private Location[]? locations;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLocations();
+    }
+
+    private async Task LoadLocations()
+    {
+        locations = await _ApplicationDbContext.Locations.ToArrayAsync();
+    }
+
+    private async Task DeleteLocation(int id)
+    {
+        var location = await _ApplicationDbContext.Locations.FindAsync(id);
+        if (location != null)
+        {
+            var accIds = _ApplicationDbContext.Accommodations
+                .Where(a => a.LocationID == id)
+                .Select(a => a.AccommodationID);
+
+            var bookings = _ApplicationDbContext.Bookings.Where(b => accIds.Contains(b.AccommodationID));
+            _ApplicationDbContext.Bookings.RemoveRange(bookings);
+
+            var accProps = _ApplicationDbContext.AccommodationProperties.Where(ap => accIds.Contains(ap.AccommodationID));
+            _ApplicationDbContext.AccommodationProperties.RemoveRange(accProps);
+
+            var accommodations = _ApplicationDbContext.Accommodations.Where(a => a.LocationID == id);
+            _ApplicationDbContext.Accommodations.RemoveRange(accommodations);
+
+            _ApplicationDbContext.Locations.Remove(location);
+            await _ApplicationDbContext.SaveChangesAsync();
+            await LoadLocations();
+        }
+    }
+}

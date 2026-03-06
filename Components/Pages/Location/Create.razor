@@ -1,0 +1,45 @@
+@page "/locations/create"
+@using BlazorProject.Data
+@using Location = BlazorProject.Data.Location
+@inject ApplicationDbContext _ApplicationDbContext
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+
+<PageTitle>Locatie toevoegen</PageTitle>
+
+<h1>Locatie toevoegen</h1>
+
+<EditForm Model=@newLocation OnValidSubmit="HandleValidSubmit" FormName="createLocationForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label class="form-label">Stad:</label>
+        <InputText @bind-Value=newLocation.City class="form-control" placeholder="Stad..." />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Provincie:</label>
+        <InputText @bind-Value=newLocation.Province class="form-control" placeholder="Provincie..." />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Land:</label>
+        <InputText @bind-Value=newLocation.Country class="form-control" placeholder="Land..." />
+    </div>
+
+    <input type="submit" value="Opslaan" class="btn btn-success" />
+    <a href="/locations/" class="btn btn-secondary ms-2">Annuleren</a>
+</EditForm>
+
+@code {
+    [SupplyParameterFromForm]
+    private Location newLocation { get; set; } = new Location();
+
+    private async Task HandleValidSubmit()
+    {
+        _ApplicationDbContext.Locations.Add(newLocation);
+        await _ApplicationDbContext.SaveChangesAsync();
+        Navigation.NavigateTo("/locations/");
+    }
+}

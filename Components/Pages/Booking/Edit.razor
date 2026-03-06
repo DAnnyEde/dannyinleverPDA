@@ -1,0 +1,104 @@
+@page "/bookings/{id:int}"
+@using BlazorProject.Data
+@using Booking = BlazorProject.Data.Booking
+@using Accommodation = BlazorProject.Data.Accommodation
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext _ApplicationDbContext
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+
+<PageTitle>Boeking bewerken</PageTitle>
+
+@if (booking == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>Boeking bewerken</h1>
+        <button class="btn btn-danger" @onclick="DeleteBooking">Verwijderen</button>
+    </div>
+
+    <EditForm Model=@booking OnValidSubmit="HandleValidSubmit" FormName="editBookingForm">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Klant:</label>
+            <InputSelect @bind-Value=booking.CustomerID class="form-control">
+                @foreach (var customer in customers ?? [])
+                {
+                    <option value="@customer.CustomerID">@customer.FirstName @customer.LastName</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Accommodatie:</label>
+            <InputSelect @bind-Value=booking.AccommodationID class="form-control">
+                @foreach (var accommodation in accommodations ?? [])
+                {
+                    <option value="@accommodation.AccommodationID">@accommodation.Name</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Boekingsdatum:</label>
+            <InputDate @bind-Value=booking.BookingDate class="form-control" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Aankomstdatum:</label>
+            <InputDate @bind-Value=booking.ArrivalDate class="form-control" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Vertrekdatum:</label>
+            <InputDate @bind-Value=booking.DepartureDate class="form-control" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Aantal gasten:</label>
+            <InputNumber @bind-Value=booking.NumberOfGuests class="form-control" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Totale prijs (€):</label>
+            <InputNumber @bind-Value=booking.TotalPrice class="form-control" />
+        </div>
+
+        <input type="submit" value="Opslaan" class="btn btn-success" />
+        <a href="/bookings/" class="btn btn-secondary ms-2">Annuleren</a>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Booking? booking;
+    private Customer[]? customers;
+    private Accommodation[]? accommodations;
+
+    protected override async Task OnInitializedAsync()
+    {
+        booking = await _ApplicationDbContext.Bookings.FindAsync(Id);
+        customers = await _ApplicationDbContext.Customers.ToArrayAsync();
+        accommodations = await _ApplicationDbContext.Accommodations.ToArrayAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        _ApplicationDbContext.Bookings.Update(booking!);
+        await _ApplicationDbContext.SaveChangesAsync();
+        Navigation.NavigateTo("/bookings/");
+    }
+
+    private async Task DeleteBooking()
+    {
+        _ApplicationDbContext.Bookings.Remove(booking!);
+        await _ApplicationDbContext.SaveChangesAsync();
+        Navigation.NavigateTo("/bookings/");
+    }
+}

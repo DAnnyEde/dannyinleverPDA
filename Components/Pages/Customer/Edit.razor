@@ -1,0 +1,79 @@
+@page "/customers/{id:int}"
+@using BlazorProject.Data
+@using Customer = BlazorProject.Data.Customer
+@inject ApplicationDbContext _ApplicationDbContext
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+
+<PageTitle>Klant bewerken</PageTitle>
+
+@if (customer == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>Klant bewerken</h1>
+        <button class="btn btn-danger" @onclick="DeleteCustomer">Verwijderen</button>
+    </div>
+
+    <EditForm Model=@customer OnValidSubmit="HandleValidSubmit" FormName="editCustomerForm">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Voornaam:</label>
+            <InputText @bind-Value=customer.FirstName class="form-control" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Achternaam:</label>
+            <InputText @bind-Value=customer.LastName class="form-control" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Email:</label>
+            <InputText @bind-Value=customer.Email class="form-control" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Telefoonnummer:</label>
+            <InputText @bind-Value=customer.PhoneNumber class="form-control" />
+        </div>
+
+        <input type="submit" value="Opslaan" class="btn btn-success" />
+        <a href="/customers/" class="btn btn-secondary ms-2">Annuleren</a>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Customer? customer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        customer = await _ApplicationDbContext.Customers.FindAsync(Id);
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        _ApplicationDbContext.Customers.Update(customer!);
+        await _ApplicationDbContext.SaveChangesAsync();
+        Navigation.NavigateTo("/customers/");
+    }
+
+    private async Task DeleteCustomer()
+    {
+        var bookings = _ApplicationDbContext.Bookings.Where(b => b.CustomerID == Id);
+        _ApplicationDbContext.Bookings.RemoveRange(bookings);
+
+        var wishes = _ApplicationDbContext.CustomerWishes.Where(cw => cw.CustomerID == Id);
+        _ApplicationDbContext.CustomerWishes.RemoveRange(wishes);
+
+        _ApplicationDbContext.Customers.Remove(customer!);
+        await _ApplicationDbContext.SaveChangesAsync();
+        Navigation.NavigateTo("/customers/");
+    }
+}
